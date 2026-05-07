@@ -1,7 +1,7 @@
 # Proyecto Identificación y Pixelado de Rostros en Imágenes
 
 Sistema distribuido basado en eventos (Event-Driven Architecture) que recibe imágenes vía HTTP REST, detecta rostros, estima la edad de cada uno y pixela automáticamente los rostros de personas menores de 18 años. La comunicación entre microservicios se realiza exclusivamente mediante **Kafka** (sin llamadas HTTP síncronas entre servicios).
- 
+
 ---
 
 ## Tabla de contenidos
