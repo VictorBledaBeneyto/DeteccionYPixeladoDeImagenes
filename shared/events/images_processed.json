@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "images.processed",
+  "description": "Pixelar → O4: imagen procesada con marcos y recortes guardados en MinIO",
+  "type": "object",
+  "required": ["GUID_Solicitud", "marcos_key", "faces"],
+  "properties": {
+    "GUID_Solicitud": { "type": "string", "format": "uuid" },
+    "marcos_key": { "type": "string", "description": "s3 key de la imagen anotada (marcos + scores)" },
+    "faces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id_imagen", "bbox", "score", "es_menor", "url_imagen"],
+        "properties": {
+          "id_imagen": { "type": "integer" },
+          "bbox": { "type": "object" },
+          "score": { "type": "number" },
+          "es_menor": { "type": "boolean" },
+          "url_imagen": { "type": "string", "description": "s3 key del recorte en definitivas/" }
+        }
+      }
+    }
+  }
+}

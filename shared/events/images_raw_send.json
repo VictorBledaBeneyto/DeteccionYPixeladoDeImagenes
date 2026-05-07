@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "images.raw.send",
+  "description": "API_1/O1 → DC: orden de detectar caras",
+  "type": "object",
+  "required": ["GUID_Solicitud", "s3_key", "timestamp"],
+  "properties": {
+    "GUID_Solicitud": { "type": "string", "format": "uuid" },
+    "s3_key": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

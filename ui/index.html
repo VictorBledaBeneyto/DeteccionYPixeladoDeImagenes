@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Face Pipeline — Tester</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .drop-active { @apply border-blue-700 bg-blue-100; }
+    .step-done   { background:#22c55e; color:#fff; }
+    .step-active { background:#1d4ed8; color:#fff; animation: pulse 1.5s infinite; }
+    .step-fail   { background:#ef4444; color:#fff; }
+    .step-idle   { background:#e5e7eb; color:#6b7280; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    #lightbox { display:none; position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.75); backdrop-filter:blur(4px); justify-content:center; align-items:center; }
+    #lightbox.active { display:flex; }
+    #lightbox img { max-width:90vw; max-height:90vh; border-radius:0.75rem; box-shadow:0 25px 50px rgba(0,0,0,.4); object-fit:contain; transform-origin:center center; transition:transform .15s ease; cursor:grab; }
+    #lightbox img.zoomed { cursor:grab; }
+    #lightbox img.panning { cursor:grabbing; transition:none; }
+    #lightbox .lb-label { position:absolute; top:1.25rem; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.55); color:#fff; padding:0.25rem 1rem; border-radius:9999px; font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; pointer-events:none; }
+    #lightbox .lb-close { position:absolute; top:1rem; right:1.25rem; width:2.5rem; height:2.5rem; border-radius:9999px; background:rgba(255,255,255,.15); color:#fff; border:none; font-size:1.25rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }
+    #lightbox .lb-close:hover { background:rgba(255,255,255,.3); }
+    #lightbox .lb-nav { position:absolute; top:50%; transform:translateY(-50%); width:2.75rem; height:2.75rem; border-radius:9999px; background:rgba(255,255,255,.15); color:#fff; border:none; font-size:1.5rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }
+    #lightbox .lb-nav:hover { background:rgba(255,255,255,.3); }
+    #lightbox .lb-prev { left:1rem; }
+    #lightbox .lb-next { right:1rem; }
+    .result-img { cursor:zoom-in; transition:transform .15s, box-shadow .15s; }
+    .result-img:hover { transform:scale(1.03); box-shadow:0 4px 16px rgba(0,0,0,.12); }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-100 font-sans text-gray-800">
+
+<header class="bg-white shadow-sm sticky top-0 z-10">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold tracking-tight">Análisis Facial</h1>
+      <p class="text-xs text-gray-400">Detección de caras, edad y pixelado automático</p>
+    </div>
+  </div>
+</header>
+
+<div class="max-w-6xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+  <div class="lg:col-span-1 space-y-4">
+    <div class="bg-white rounded-xl shadow p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold text-sm uppercase tracking-wider text-gray-500">Subir imagen</h2>
+        <div id="preview-actions" class="hidden flex gap-1.5">
+          <button onclick="document.getElementById('file-input').click()"
+                  class="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4"/>
+            </svg>
+            Cambiar
+          </button>
+          <button onclick="clearFile()"
+                  class="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 text-red-500 text-xs font-semibold hover:bg-red-50 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            Quitar
+          </button>
+        </div>
+      </div>
+
+      <div id="drop-zone"
+           class="border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors hover:border-blue-600 hover:bg-blue-100"
+           onclick="document.getElementById('file-input').click()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16l4-4m0 0l5-5 5 5M7 12v8m10-8v8M3 20h18"/>
+        </svg>
+        <span class="text-sm text-gray-400">Arrastra una imagen o haz clic</span>
+        <span class="text-xs text-gray-300">JPG, PNG, WEBP</span>
+      </div>
+      <input id="file-input" type="file" accept="image/*" class="hidden" />
+
+      <div id="preview-wrap" class="hidden">
+        <img id="preview-img" class="w-full rounded-xl object-cover" style="max-height:260px" />
+        <p id="preview-name" class="text-xs text-gray-400 mt-1.5 truncate px-0.5"></p>
+      </div>
+
+      <button id="btn-upload"
+              class="w-full py-2.5 rounded-lg bg-blue-800 text-white text-sm font-semibold hover:bg-blue-900 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              disabled>
+        Enviar al pipeline
+      </button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow p-4 space-y-2">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold text-sm uppercase tracking-wider text-gray-500">Recientes</h2>
+        <button onclick="clearHistory()" class="text-xs text-gray-300 hover:text-red-400">limpiar</button>
+      </div>
+      <ul id="history-list" class="space-y-1 text-xs max-h-52 overflow-y-auto"></ul>
+      <p id="history-empty" class="text-xs text-gray-300 italic">Sin solicitudes previas</p>
+    </div>
+
+    <div class="bg-white rounded-xl shadow p-4 space-y-2">
+      <h2 class="font-semibold text-sm uppercase tracking-wider text-gray-500">Buscar GUID</h2>
+      <div class="flex gap-2">
+        <input id="guid-input" type="text" placeholder="xxxxxxxx-xxxx-…"
+               class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-700" />
+        <button onclick="lookupGuid()" class="px-3 py-1.5 rounded-lg bg-gray-700 text-white text-xs hover:bg-gray-800">Buscar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="results-panel" class="lg:col-span-2 space-y-6">
+
+    <div id="empty-state" class="flex flex-col items-center justify-center h-64 text-gray-300 gap-3">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      <p class="text-sm">Sube una imagen para ver los resultados</p>
+    </div>
+
+    <div id="result-content" class="hidden space-y-6">
+      <div class="bg-white rounded-xl shadow p-5 space-y-4">
+        <div class="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <p class="text-xs text-gray-400 uppercase tracking-wider">GUID Solicitud</p>
+            <p id="res-guid" class="font-mono text-sm font-semibold break-all"></p>
+          </div>
+          <span id="res-estado" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-600"></span>
+        </div>
+
+        <div class="flex items-center gap-1 flex-wrap">
+          <div class="flex items-center gap-1" id="step-CREADA">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold step-idle">CREADA</span>
+            <svg class="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </div>
+          <div class="flex items-center gap-1" id="step-CARAS_DETECTADAS">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold step-idle">CARAS_DETECTADAS</span>
+            <svg class="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </div>
+          <div class="flex items-center gap-1" id="step-EDAD_CALCULADA">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold step-idle">EDAD_CALCULADA</span>
+            <svg class="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </div>
+          <div id="step-COMPLETADA">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold step-idle">COMPLETADA</span>
+          </div>
+          <div id="step-FALLIDA" class="hidden">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold step-fail">FALLIDA</span>
+          </div>
+        </div>
+
+        <div id="timestamps" class="hidden grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-gray-500 border-t pt-3">
+          <span class="font-medium text-gray-600 col-span-2">Timestamps</span>
+          <span id="ts-inicio">—</span><span id="ts-fin">—</span>
+          <span id="ts-dc-i">—</span><span id="ts-dc-f">—</span>
+          <span id="ts-de-i">—</span><span id="ts-de-f">—</span>
+          <span id="ts-px-i">—</span><span id="ts-px-f">—</span>
+          <span id="ts-latency" class="col-span-2 font-semibold text-blue-800"></span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl shadow p-3 space-y-2">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Original</p>
+          <img id="img-original" class="w-full rounded-lg object-cover bg-gray-50" style="min-height:120px" />
+        </div>
+        <div class="bg-white rounded-xl shadow p-3 space-y-2">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Con marcos</p>
+          <img id="img-marcos" class="w-full rounded-lg object-cover bg-gray-50" style="min-height:120px" />
+        </div>
+        <div class="bg-white rounded-xl shadow p-3 space-y-2">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Procesada</p>
+          <img id="img-terminada" class="w-full rounded-lg object-cover bg-gray-50" style="min-height:120px" />
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="font-semibold text-sm uppercase tracking-wider text-gray-500">Caras detectadas</h2>
+          <span id="face-count" class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">0</span>
+        </div>
+        <div id="faces-grid" class="flex flex-wrap gap-3"></div>
+        <p id="no-faces" class="text-sm text-gray-400 italic">Sin caras detectadas</p>
+      </div>
+
+      <details class="bg-white rounded-xl shadow p-4">
+        <summary class="text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer">JSON completo</summary>
+        <pre id="raw-json" class="mt-3 text-xs bg-gray-50 rounded-lg p-3 overflow-auto max-h-64 text-gray-600"></pre>
+      </details>
+    </div>
+  </div>
+
+</div>
+
+<div id="lightbox">
+  <span id="lb-label" class="lb-label"></span>
+  <span id="lb-zoom-level" style="position:absolute;bottom:1.25rem;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.7rem;font-weight:600;pointer-events:none;"></span>
+  <button class="lb-close" onclick="closeLightbox()">&times;</button>
+  <button class="lb-nav lb-prev" onclick="lbStep(-1)">&#8249;</button>
+  <img id="lb-img" />
+  <button class="lb-nav lb-next" onclick="lbStep(1)">&#8250;</button>
+</div>
+
+<script>
+const API_UPLOAD = 'http://localhost:8000';
+const API_QUERY  = 'http://localhost:8001';
+const MINIO_INT    = /http:\/\/minio:\d+/g;
+const MINIO_EXT    = 'http://localhost:9010';
+const MINIO_BUCKET = 'images';
+
+function fixUrl(url) {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url.replace(MINIO_INT, MINIO_EXT);
+  }
+  return `${MINIO_EXT}/${MINIO_BUCKET}/${url}`;
+}
+
+async function checkHealth(base, elId) {
+  const el = document.getElementById(elId);
+  try {
+    const r = await fetch(`${base}/health`, { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      el.className = 'px-2 py-1 rounded-full bg-green-100 text-green-700';
+      el.textContent = `${elId.replace('status-','')}: ${base.split(':').pop()} ✓`;
+    } else throw new Error();
+  } catch {
+    el.className = 'px-2 py-1 rounded-full bg-red-100 text-red-600';
+    el.textContent = `${elId.replace('status-','')}: ${base.split(':').pop()} ✗`;
+  }
+}
+
+function runHealthChecks() {
+  checkHealth(API_UPLOAD, 'status-upload');
+  checkHealth(API_QUERY,  'status-query');
+}
+runHealthChecks();
+setInterval(runHealthChecks, 15000);
+
+let selectedFile = null;
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const btnUpload  = document.getElementById('btn-upload');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-blue-700','bg-blue-100'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-700','bg-blue-100'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('border-blue-700','bg-blue-100');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) setFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+
+function setFile(f) {
+  selectedFile = f;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('preview-img').src = ev.target.result;
+    document.getElementById('preview-name').textContent = f.name;
+    document.getElementById('drop-zone').classList.add('hidden');
+    document.getElementById('preview-wrap').classList.remove('hidden');
+    document.getElementById('preview-actions').classList.remove('hidden');
+  };
+  reader.readAsDataURL(f);
+  btnUpload.disabled = false;
+}
+
+function clearFile() {
+  selectedFile = null;
+  document.getElementById('file-input').value = '';
+  document.getElementById('preview-img').src = '';
+  document.getElementById('preview-name').textContent = '';
+  document.getElementById('preview-wrap').classList.add('hidden');
+  document.getElementById('preview-actions').classList.add('hidden');
+  document.getElementById('drop-zone').classList.remove('hidden');
+  btnUpload.disabled = true;
+}
+
+btnUpload.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  btnUpload.disabled = true;
+  btnUpload.textContent = 'Enviando…';
+
+  const fd = new FormData();
+  fd.append('file', selectedFile);
+
+  try {
+    const r = await fetch(`${API_UPLOAD}/images`, { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { GUID_Solicitud } = await r.json();
+    addToHistory(GUID_Solicitud);
+    startPolling(GUID_Solicitud);
+  } catch (err) {
+    alert(`Error al subir: ${err.message}`);
+    btnUpload.disabled = false;
+  } finally {
+    btnUpload.textContent = 'Enviar al pipeline';
+  }
+});
+
+let pollingTimer = null;
+
+function startPolling(guid) {
+  showResultPanel(guid);
+  if (pollingTimer) clearInterval(pollingTimer);
+  pollingTimer = setInterval(() => fetchResult(guid), 2000);
+  fetchResult(guid);
+}
+
+async function fetchResult(guid) {
+  try {
+    const r = await fetch(`${API_QUERY}/solicitudes/${guid}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    renderResult(guid, data);
+    const estado = data.solicitud?.estado || data.solicitud?.Estado;
+    if (estado === 'COMPLETADA' || estado === 'FALLIDA') {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+    }
+  } catch (err) {
+    console.warn('Polling error:', err.message);
+  }
+}
+
+const STEPS = ['CREADA','CARAS_DETECTADAS','EDAD_CALCULADA','COMPLETADA'];
+
+function showResultPanel(guid) {
+  document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('result-content').classList.remove('hidden');
+  document.getElementById('res-guid').textContent = guid;
+  document.getElementById('faces-grid').innerHTML = '';
+  document.getElementById('face-count').textContent = '0';
+  document.getElementById('no-faces').style.display = '';
+  ['img-original','img-marcos','img-terminada'].forEach(id => {
+    const el = document.getElementById(id);
+    el.src = '';
+    el.alt = '';
+  });
+}
+
+function renderResult(guid, data) {
+  const s = normalizeKeys(data.solicitud || {});
+  const imagenes = (data.imagenes || []).map(normalizeKeys);
+
+  const estado = s.estado || '—';
+  const badge = document.getElementById('res-estado');
+  badge.textContent = estado;
+  badge.className = `px-3 py-1 rounded-full text-xs font-bold ${estadoColor(estado)}`;
+
+  const idx = STEPS.indexOf(estado);
+  STEPS.forEach((step, i) => {
+    const stepEl = document.getElementById(`step-${step}`);
+    if (!stepEl) return;
+    const span = stepEl.querySelector('span');
+    if (estado === 'FALLIDA') {
+      span.className = 'px-2 py-0.5 rounded text-xs font-semibold ' + (i <= idx ? 'step-done' : 'step-idle');
+    } else if (i < idx) {
+      span.className = 'px-2 py-0.5 rounded text-xs font-semibold step-done';
+    } else if (i === idx) {
+      span.className = 'px-2 py-0.5 rounded text-xs font-semibold ' + (estado === 'COMPLETADA' ? 'step-done' : 'step-active');
+    } else {
+      span.className = 'px-2 py-0.5 rounded text-xs font-semibold step-idle';
+    }
+  });
+  document.getElementById('step-FALLIDA').classList.toggle('hidden', estado !== 'FALLIDA');
+
+  setImg('img-original',  s.url_imagen_original);
+  setImg('img-marcos',    s.url_imagen_marcos);
+  setImg('img-terminada', s.url_imagen_terminada);
+
+  if (s.inicio_solicitud) {
+    document.getElementById('timestamps').classList.remove('hidden');
+    document.getElementById('ts-inicio').textContent = `Solicitud inicio: ${fmtTs(s.inicio_solicitud)}`;
+    document.getElementById('ts-fin').textContent    = `Solicitud fin: ${fmtTs(s.fin_solicitud)}`;
+    document.getElementById('ts-dc-i').textContent   = `DC inicio: ${fmtTs(s.inicio_deteccion_caras)}`;
+    document.getElementById('ts-dc-f').textContent   = `DC fin: ${fmtTs(s.fin_deteccion_caras)}`;
+    document.getElementById('ts-de-i').textContent   = `DE inicio: ${fmtTs(s.inicio_edad)}`;
+    document.getElementById('ts-de-f').textContent   = `DE fin: ${fmtTs(s.fin_edad)}`;
+    document.getElementById('ts-px-i').textContent   = `Pixelar inicio: ${fmtTs(s.inicio_pixelado)}`;
+    document.getElementById('ts-px-f').textContent   = `Pixelar fin: ${fmtTs(s.fin_pixelado)}`;
+
+    if (s.inicio_solicitud && s.fin_solicitud) {
+      const ms = new Date(s.fin_solicitud) - new Date(s.inicio_solicitud);
+      document.getElementById('ts-latency').textContent = `Latencia total: ${ms} ms`;
+    } else {
+      document.getElementById('ts-latency').textContent = '';
+    }
+  }
+
+  renderFaces(guid, imagenes);
+
+  document.getElementById('raw-json').textContent = JSON.stringify(data, null, 2);
+}
+
+function renderFaces(guid, imagenes) {
+  const grid = document.getElementById('faces-grid');
+  const noFaces = document.getElementById('no-faces');
+  document.getElementById('face-count').textContent = imagenes.length;
+
+  if (imagenes.length === 0) {
+    grid.innerHTML = '';
+    noFaces.style.display = '';
+    return;
+  }
+  noFaces.style.display = 'none';
+
+  grid.innerHTML = imagenes.map(img => {
+    const url   = fixUrl(img.url_imagen) || '';
+    const sc = img.score != null ? parseFloat(img.score) : NaN;
+    const score = Number.isFinite(sc) ? Math.max(0, Math.min(1, sc)).toFixed(4) : '—';
+    const minor = img.mayor_18 === false || img.mayor_18 === 'false';
+    const label = img.mayor_18 == null ? '?' : (minor ? 'Menor' : 'Mayor');
+    const dot   = img.mayor_18 == null ? 'bg-gray-400' : (minor ? 'bg-red-500' : 'bg-green-500');
+    const badge = img.mayor_18 == null ? 'text-gray-500' : (minor ? 'text-red-600' : 'text-green-700');
+    return `
+      <div class="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2" style="min-width:180px">
+        <div class="shrink-0 w-14 h-14 rounded-lg bg-white border border-gray-200 overflow-hidden flex items-center justify-center">
+          <img src="${url}" class="max-w-full max-h-full object-contain"
+               onerror="this.parentElement.innerHTML='<span class=\\'text-gray-300 text-xs\\'>—</span>'" />
+        </div>
+        <div class="text-xs space-y-0.5 min-w-0">
+          <div class="font-semibold text-gray-700">Cara #${img.id_imagen ?? img.Id_Imagen}</div>
+          <div class="flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full ${dot} inline-block"></span>
+            <span class="${badge} font-medium">${label}</span>
+          </div>
+          <div class="text-gray-400">Score: <span class="font-semibold text-gray-600">${score}</span></div>
+          <div class="text-gray-300">${img.imagen_ancho ?? '?'}×${img.imagen_alto ?? '?'} px</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function addToHistory(guid) {
+  let history = getHistory();
+  history = [guid, ...history.filter(g => g !== guid)].slice(0, 20);
+  localStorage.setItem('face_pipeline_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('face_pipeline_history') || '[]'); } catch { return []; }
+}
+
+function renderHistory() {
+  const list  = document.getElementById('history-list');
+  const empty = document.getElementById('history-empty');
+  const h = getHistory();
+  empty.style.display = h.length ? 'none' : '';
+  list.innerHTML = h.map(guid => `
+    <li class="flex items-center gap-1">
+      <button onclick="startPolling('${guid}')"
+              class="flex-1 text-left font-mono truncate text-blue-800 hover:underline"
+              title="${guid}">${guid.slice(0,8)}…${guid.slice(-4)}</button>
+    </li>`).join('');
+}
+
+function clearHistory() {
+  localStorage.removeItem('face_pipeline_history');
+  renderHistory();
+}
+
+function lookupGuid() {
+  const v = document.getElementById('guid-input').value.trim();
+  if (v) startPolling(v);
+}
+
+document.getElementById('guid-input').addEventListener('keydown', e => { if (e.key === 'Enter') lookupGuid(); });
+
+renderHistory();
+
+function normalizeKeys(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) out[k.toLowerCase()] = v;
+  return out;
+}
+
+function makePlaceholder(label) {
+  const ph = document.createElement('div');
+  ph.className = 'flex flex-col items-center justify-center w-full rounded-lg bg-gray-50 text-gray-300';
+  ph.style.minHeight = '120px';
+  ph.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4-4a3 3 0 014.243 0L16 16m-2-2l1.586-1.586a3 3 0 014.243 0L20 16M14 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg><span class="text-xs">' + label + '</span>';
+  return ph;
+}
+
+function setImg(id, url) {
+  const el = document.getElementById(id);
+  const prev = el.nextElementSibling;
+  if (prev && prev.dataset.placeholder) prev.remove();
+  el.style.display = '';
+
+  if (!url || url.endsWith('/')) {
+    el.style.display = 'none';
+    const ph = makePlaceholder(url ? 'Ver caras abajo' : 'Sin imagen');
+    ph.dataset.placeholder = '1';
+    el.parentElement.insertBefore(ph, el.nextSibling);
+    return;
+  }
+  const fixed = fixUrl(url);
+  el.src = fixed;
+  el.alt = id;
+  el.onerror = () => {
+    el.style.display = 'none';
+    const ph = makePlaceholder('Sin imagen');
+    ph.dataset.placeholder = '1';
+    el.parentElement.insertBefore(ph, el.nextSibling);
+  };
+}
+
+function fmtTs(ts) {
+  if (!ts) return '—';
+  try {
+    return new Date(ts).toLocaleTimeString('es-ES', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit', fractionalSecondDigits:3 });
+  } catch { return ts; }
+}
+
+function estadoColor(estado) {
+  switch (estado) {
+    case 'CREADA':            return 'bg-yellow-100 text-yellow-700';
+    case 'CARAS_DETECTADAS':  return 'bg-blue-200 text-blue-900';
+    case 'EDAD_CALCULADA':    return 'bg-purple-100 text-purple-700';
+    case 'COMPLETADA':        return 'bg-green-100 text-green-700';
+    case 'FALLIDA':           return 'bg-red-100 text-red-700';
+    default:                  return 'bg-gray-100 text-gray-600';
+  }
+}
+const lbSources = [
+  { id: 'img-original',  label: 'Original' },
+  { id: 'img-marcos',    label: 'Con marcos' },
+  { id: 'img-terminada', label: 'Procesada' },
+];
+let lbIndex = 0;
+let lbZoom = 1;
+let lbPanX = 0, lbPanY = 0;
+let lbDragging = false, lbDragStartX = 0, lbDragStartY = 0, lbPanStartX = 0, lbPanStartY = 0;
+
+function lbResetZoom() {
+  lbZoom = 1; lbPanX = 0; lbPanY = 0;
+  lbApplyTransform();
+  document.getElementById('lb-img').classList.remove('zoomed','panning');
+  document.getElementById('lb-zoom-level').textContent = '';
+}
+
+function lbApplyTransform() {
+  document.getElementById('lb-img').style.transform = `translate(${lbPanX}px, ${lbPanY}px) scale(${lbZoom})`;
+}
+
+function openLightbox(idx) {
+  lbIndex = idx;
+  updateLightbox();
+  lbResetZoom();
+  document.getElementById('lightbox').classList.add('active');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+  lbResetZoom();
+}
+
+function lbStep(dir) {
+  lbIndex = (lbIndex + dir + lbSources.length) % lbSources.length;
+  lbResetZoom();
+  updateLightbox();
+}
+
+function updateLightbox() {
+  const src = document.getElementById(lbSources[lbIndex].id).src;
+  document.getElementById('lb-img').src = src;
+  document.getElementById('lb-label').textContent = lbSources[lbIndex].label;
+}
+
+const lbImg = document.getElementById('lb-img');
+
+lbImg.addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? -0.15 : 0.15;
+  lbZoom = Math.min(8, Math.max(0.5, lbZoom + delta * lbZoom));
+  if (Math.abs(lbZoom - 1) < 0.05) { lbZoom = 1; lbPanX = 0; lbPanY = 0; }
+  lbImg.classList.toggle('zoomed', lbZoom > 1);
+  lbImg.style.transition = 'transform .15s ease';
+  lbApplyTransform();
+  document.getElementById('lb-zoom-level').textContent = lbZoom > 1.05 ? `${Math.round(lbZoom * 100)}%` : '';
+}, { passive: false });
+
+lbImg.addEventListener('dblclick', e => {
+  e.stopPropagation();
+  if (lbZoom > 1.05) {
+    lbResetZoom();
+  } else {
+    const rect = lbImg.getBoundingClientRect();
+    lbZoom = 3;
+    lbPanX = (rect.width / 2 - (e.clientX - rect.left)) * 2;
+    lbPanY = (rect.height / 2 - (e.clientY - rect.top)) * 2;
+    lbImg.classList.add('zoomed');
+    lbImg.style.transition = 'transform .25s ease';
+    lbApplyTransform();
+    document.getElementById('lb-zoom-level').textContent = '300%';
+  }
+});
+
+lbImg.addEventListener('mousedown', e => {
+  if (lbZoom <= 1) return;
+  e.preventDefault();
+  lbDragging = true;
+  lbDragStartX = e.clientX; lbDragStartY = e.clientY;
+  lbPanStartX = lbPanX; lbPanStartY = lbPanY;
+  lbImg.classList.add('panning');
+});
+
+window.addEventListener('mousemove', e => {
+  if (!lbDragging) return;
+  lbPanX = lbPanStartX + (e.clientX - lbDragStartX);
+  lbPanY = lbPanStartY + (e.clientY - lbDragStartY);
+  lbApplyTransform();
+});
+
+window.addEventListener('mouseup', () => {
+  if (!lbDragging) return;
+  lbDragging = false;
+  lbImg.classList.remove('panning');
+});
+
+lbSources.forEach((s, i) => {
+  const el = document.getElementById(s.id);
+  el.classList.add('result-img');
+  el.addEventListener('click', () => {
+    if (el.src && !el.src.endsWith('/')) openLightbox(i);
+  });
+});
+
+document.getElementById('lightbox').addEventListener('click', e => {
+  if (e.target.id === 'lightbox' && !lbDragging && lbZoom <= 1) closeLightbox();
+});
+
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('lightbox').classList.contains('active')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft')  lbStep(-1);
+  if (e.key === 'ArrowRight') lbStep(1);
+  if (e.key === '0') lbResetZoom();
+  if (e.key === '+' || e.key === '=') { lbZoom = Math.min(8, lbZoom * 1.3); lbImg.classList.toggle('zoomed', lbZoom > 1); lbImg.style.transition = 'transform .15s ease'; lbApplyTransform(); document.getElementById('lb-zoom-level').textContent = lbZoom > 1.05 ? `${Math.round(lbZoom*100)}%` : ''; }
+  if (e.key === '-') { lbZoom = Math.max(0.5, lbZoom / 1.3); if (lbZoom <= 1.05) { lbZoom = 1; lbPanX = 0; lbPanY = 0; } lbImg.classList.toggle('zoomed', lbZoom > 1); lbImg.style.transition = 'transform .15s ease'; lbApplyTransform(); document.getElementById('lb-zoom-level').textContent = lbZoom > 1.05 ? `${Math.round(lbZoom*100)}%` : ''; }
+});
+</script>
+</body>
+</html>

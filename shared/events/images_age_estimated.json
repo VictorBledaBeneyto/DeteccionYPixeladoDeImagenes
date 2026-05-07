@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "images.age_estimated",
+  "description": "DE → O3: resultado de estimación de edad por cara",
+  "type": "object",
+  "required": ["GUID_Solicitud", "s3_key", "faces"],
+  "properties": {
+    "GUID_Solicitud": { "type": "string", "format": "uuid" },
+    "s3_key": { "type": "string" },
+    "faces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id_imagen", "bbox", "score", "es_menor"],
+        "properties": {
+          "id_imagen": { "type": "integer" },
+          "bbox": { "type": "object" },
+          "score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "es_menor": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

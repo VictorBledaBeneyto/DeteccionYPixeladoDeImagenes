@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "images.age_estimated.send",
+  "description": "O3 → Pixelar: orden de pixelar menores y enmarcar todas las caras",
+  "type": "object",
+  "required": ["GUID_Solicitud", "s3_key", "faces"],
+  "properties": {
+    "GUID_Solicitud": { "type": "string", "format": "uuid" },
+    "s3_key": { "type": "string" },
+    "faces": {
+      "type": "array",
+      "description": "Todas las caras detectadas (con es_menor indicando cuales pixelar)"
+    }
+  }
+}
