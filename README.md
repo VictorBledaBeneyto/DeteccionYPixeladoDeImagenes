@@ -378,10 +378,4 @@ La **latencia end-to-end** se calcula como `Fin_Solicitud - Inicio_Solicitud` en
 | Dashboard      | Power BI Desktop                                                                                      |
 
 
-#   D e t e c c i - n _ y _ p i x e l a d o _ d e _ c a r a s 
- 
- #   D e t e c c i - n _ y _ p i x e l a d o _ d e _ c a r a s 
- 
- #   D e t e c c i o n Y P i x e l a d o D e I m a g e n e s 
- 
- 
+#
