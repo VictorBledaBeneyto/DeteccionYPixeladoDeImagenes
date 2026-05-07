@@ -11,6 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY age_model.pth .
+COPY age_threshold.json .
 COPY main.py .
 
 CMD ["python", "main.py"]

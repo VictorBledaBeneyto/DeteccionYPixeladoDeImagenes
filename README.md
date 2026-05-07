@@ -41,6 +41,9 @@ proyecto_imagenes/
 │   ├── gestion-errores.md        # Gestión de errores y propuestas de mejora
 │   └── dashboard.md              # Diseño del dashboard Power BI (páginas, métricas, columnas y medidas)
 │
+├── presentacion/
+│   └── Proyecto Imágenes.pdf     # Presentación del proyecto
+│
 ├── powerbi/
 │   └── sistema_deteccion_menores.pbix  # Dashboard Power BI
 │
@@ -92,7 +95,9 @@ proyecto_imagenes/
 │   ├── de/                       # Age Detection (PyTorch ResNet)
 │   │   ├── Dockerfile
 │   │   ├── requirements.txt
-│   │   └── main.py
+│   │   ├── main.py
+│   │   ├── age_threshold.json    # Umbral de clasificación menor/mayor
+│   │   └── age_model.pth         # Modelo de estimación de edad
 │   └── pixelar/                  # Pixelation (OpenCV)
 │       ├── Dockerfile
 │       ├── requirements.txt
@@ -378,4 +383,3 @@ La **latencia end-to-end** se calcula como `Fin_Solicitud - Inicio_Solicitud` en
 | Dashboard      | Power BI Desktop                                                                                      |
 
 
-#
